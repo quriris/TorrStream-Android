@@ -39,7 +39,8 @@ android {
     //noinspection GradleDependency
     compileSdk 34
     defaultConfig {
-        applicationId "my.torrstream.app"
+        // Свой идентификатор — ставится рядом с оригинальным TorrStream, а не вместо него
+        applicationId "my.torrstream.app.plus"
         // API 23 is the floor for the built-in Media3 player (hardware decoding,
         // AC3/DTS passthrough, HDR). Raised from 16 together with the Crosswalk removal.
         minSdkVersion 23

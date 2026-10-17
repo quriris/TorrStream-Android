@@ -94,6 +94,7 @@
              (MainActivity) открывается кнопкой «Каталог» или сразу, если выбран стартовым. -->
         <activity
             android:name=".search.SearchActivity"
+            android:label="@string/app_name_plus"
             android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize"
             android:exported="true"
             android:launchMode="singleTop"

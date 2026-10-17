@@ -72,6 +72,14 @@ android {
                 storePassword System.getenv('KEYSTORE_PASSWORD')
                 keyAlias System.getenv('RELEASE_SIGN_KEY_ALIAS')
                 keyPassword System.getenv('RELEASE_SIGN_KEY_PASSWORD')
+            } else {
+                // Личная сборка без секретов: ключ лежит в репозитории (app/personal.jks).
+                // Пароль не секрет — ключ нужен лишь для того, чтобы каждая новая сборка
+                // ставилась поверх прошлой, а не требовала удалять приложение.
+                storeFile file("personal.jks")
+                storePassword "torrstream"
+                keyAlias "personal"
+                keyPassword "torrstream"
             }
         }
     }
@@ -111,6 +119,9 @@ android {
         // Нативные библиотеки в APK сжаты и распаковываются при установке. Без этого
         // (по умолчанию с minSdk 23) libVLC лежит несжатым и раздувает загрузку вдвое.
         jniLibs.useLegacyPackaging = true
+        // TorrServer (libtorrserver.so) — готовый исполняемый файл Go, а не библиотека:
+        // strip из NDK ему ни к чему и может его испортить
+        jniLibs.keepDebugSymbols += '**/libtorrserver.so'
     }
     kotlinOptions {
         jvmTarget = "1.8"
@@ -222,4 +233,7 @@ dependencies {
     implementation 'org.conscrypt:conscrypt-android:2.5.3' // for TLS v1.3 on API < 29
     //noinspection GradleDependency 1.8.1 fails on build with old gradle
     implementation 'org.mozilla:rhino:1.7.15' // JavaScript to run PAC file to get correct proxies
+    // Разбор страниц сайтов в поиске торрентов (search/SiteParser.kt)
+    implementation 'org.jsoup:jsoup:1.15.3'
+    implementation 'androidx.recyclerview:recyclerview:1.3.2'
 }

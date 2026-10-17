@@ -90,6 +90,40 @@
         <meta-data android:name="notch.config" android:value="portrait|landscape" />
         <meta-data android:name="android.notch_support" android:value="true" />
         <meta-data android:name="android.max_aspect" android:value="2.5" />
+        <!-- Стартовый экран: поиск торрентов по сайтам пользователя. Каталог TorrStream
+             (MainActivity) открывается кнопкой «Каталог» или сразу, если выбран стартовым. -->
+        <activity
+            android:name=".search.SearchActivity"
+            android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:theme="@style/Theme.LAMPA"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+            <!-- magnet-ссылки из других приложений тоже открываем здесь -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="magnet" />
+            </intent-filter>
+        </activity>
+        <activity
+            android:name=".search.SitesActivity"
+            android:exported="false"
+            android:theme="@style/Theme.LAMPA" />
+        <activity
+            android:name=".search.SiteBrowserActivity"
+            android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize"
+            android:exported="false"
+            android:theme="@style/Theme.LAMPA" />
         <activity
             android:name=".CrashActivity"
             android:exported="false" />
@@ -100,12 +134,6 @@
             android:exported="true"
             android:launchMode="singleTop"
             android:theme="@style/Theme.LAMPA.Launch">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-
-                <category android:name="android.intent.category.LAUNCHER" />
-                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
-            </intent-filter>
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <action android:name="android.intent.action.SEND" />

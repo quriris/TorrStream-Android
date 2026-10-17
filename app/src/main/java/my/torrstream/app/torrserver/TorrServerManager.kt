@@ -58,7 +58,21 @@ object TorrServerManager {
     }
 
     private val dir: File get() = File(App.context.filesDir, "torrserver")
-    val binary: File get() = File(dir, "TorrServer")
+    /** Скачанная (обновлённая) копия — её же пишет [installAsync] */
+    private val downloadedBinary: File get() = File(dir, "TorrServer")
+
+    /**
+     * Копия, вшитая в APK: сборка кладёт её в jniLibs как libtorrserver.so, и система
+     * распаковывает её в nativeLibraryDir с правом на запуск (useLegacyPackaging в
+     * app/build.gradle). Так TorrServer работает сразу после установки, без загрузки.
+     */
+    val bundledBinary: File?
+        get() = File(App.context.applicationInfo.nativeLibraryDir, "libtorrserver.so")
+            .takeIf { it.isFile && it.length() > 0 }
+
+    /** Что запускаем: скачанное обновление важнее вшитой копии */
+    val binary: File
+        get() = downloadedBinary.takeIf { it.isFile && it.length() > 0 } ?: bundledBinary ?: downloadedBinary
     val dataDir: File get() = File(dir, "data")
     val logFile: File get() = File(dir, "torrserver.log")
 
@@ -84,9 +98,12 @@ object TorrServerManager {
         }
 
     val isInstalled: Boolean get() = binary.isFile && binary.length() > 0
-    val installedVersion: String? get() = prefs.getString(PREF_VERSION, null)?.takeIf { isInstalled }
+    val installedVersion: String?
+        get() = prefs.getString(PREF_VERSION, null)?.takeIf { downloadedBinary.isFile }
+            ?: if (bundledBinary != null) "встроенный" else null
+    /** Вшитый сервер включён по умолчанию: приложение и есть TorrServer */
     var autostart: Boolean
-        get() = prefs.getBoolean(PREF_AUTOSTART, false)
+        get() = prefs.getBoolean(PREF_AUTOSTART, bundledBinary != null)
         set(value) = prefs.edit { putBoolean(PREF_AUTOSTART, value) }
 
     /** Работает ли TorrServer, запущенный нами (а не чужой на том же порту) */
@@ -202,9 +219,10 @@ object TorrServerManager {
                     TorrServerService.stop(App.context)
                     delay(1500)
                 }
-                if (binary.exists()) binary.delete()
-                if (!tmp.renameTo(binary)) throw IOException("Не удалось сохранить файл")
-                if (!binary.setExecutable(true, false)) throw IOException("Файл нельзя запустить")
+                val target = downloadedBinary
+                if (target.exists()) target.delete()
+                if (!tmp.renameTo(target)) throw IOException("Не удалось сохранить файл")
+                if (!target.setExecutable(true, false)) throw IOException("Файл нельзя запустить")
                 prefs.edit { putString(PREF_VERSION, tag) }
                 progress = 100
                 Log.i(TAG, "Установлен TorrServer $tag")
@@ -244,6 +262,23 @@ object TorrServerManager {
         }
     }
 
+    /**
+     * Для экрана поиска: поднять сервер (если надо) и дождаться ответа порта.
+     * Вызывать не из главного потока. true — сервер отвечает на localhost:[PORT].
+     */
+    fun ensureRunningBlocking(timeoutMs: Long = 15_000L): Boolean {
+        if (checkPort() != null) return true
+        if (!isInstalled) return false
+        autostart = true
+        if (!isOwnRunning) TorrServerService.start(App.context)
+        val until = System.currentTimeMillis() + timeoutMs
+        while (System.currentTimeMillis() < until) {
+            Thread.sleep(500)
+            if (checkPort() != null) return true
+        }
+        return false
+    }
+
     fun stop() {
         autostart = false
         TorrServerService.stop(App.context)
@@ -259,11 +294,14 @@ object TorrServerManager {
     }
 
     fun deleteBinary() {
+        if (bundledBinary != null && !downloadedBinary.isFile) return
         stop()
         scope.launch {
             delay(1500)
-            binary.delete()
+            downloadedBinary.delete()
             prefs.edit { remove(PREF_VERSION) }
+            // Вшитая копия остаётся — её и запускаем снова
+            if (bundledBinary != null) startIfFree()
         }
     }
 }

@@ -7,6 +7,8 @@ name: Build lite APK
 on:
   workflow_dispatch:
   push:
+    branches:
+      - main
     tags:
       - 'v*'
       - 'test-*'
@@ -38,13 +40,34 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      # TorrServer вшивается в APK: официальные сборки YouROK/TorrServer кладём в jniLibs
+      # под именем libtorrserver.so — так система распакует их с правом на запуск
+      # (torrserver/TorrServerManager.bundledBinary).
+      - name: Download TorrServer
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          base=$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" \
+            https://api.github.com/repos/YouROK/TorrServer/releases/latest \
+            | python3 -c "import json,sys; print(json.load(sys.stdin)['tag_name'])")
+          echo "TorrServer $base"
+          for pair in arm64-v8a:arm64 armeabi-v7a:arm7 x86:386; do
+            abi=${pair%%:*}; arch=${pair##*:}
+            mkdir -p app/src/main/jniLibs/$abi
+            curl -fL --retry 3 -o app/src/main/jniLibs/$abi/libtorrserver.so \
+              "https://github.com/YouROK/TorrServer/releases/download/$base/TorrServer-android-$arch"
+            ls -la app/src/main/jniLibs/$abi
+          done
+
+      # Без секретов подписи собираем личным ключом из репозитория (app/personal.jks)
       - name: Restore keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: |
           if [ -z "$KEYSTORE_BASE64" ]; then
-            echo "::error::Секрет KEYSTORE_BASE64 не задан — подписать релиз нечем"
-            exit 1
+            echo "Секрет KEYSTORE_BASE64 не задан — подписываю личным ключом app/personal.jks"
+            exit 0
           fi
           mkdir -p "$RUNNER_TEMP/signing"
           printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/signing/keystore.jks"
@@ -55,11 +78,22 @@ jobs:
         # «исполняемый» нет, и шаг падал с «./gradlew: Permission denied»
         run: |
           chmod +x ./gradlew
-          ./gradlew --no-daemon assembleLiteRelease
+          set -o pipefail
+          ./gradlew --no-daemon assembleLiteRelease 2>&1 | tee build.log
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           RELEASE_SIGN_KEY_ALIAS: ${{ secrets.RELEASE_SIGN_KEY_ALIAS }}
           RELEASE_SIGN_KEY_PASSWORD: ${{ secrets.RELEASE_SIGN_KEY_PASSWORD }}
+
+      # Ошибки сборки — в аннотации запуска: их видно на странице Actions без входа
+      # и без скачивания журнала
+      - name: Report build errors
+        if: failure()
+        run: |
+          [ -f build.log ] || exit 0
+          grep -E "^e: |error:|What went wrong|Execution failed|Could not resolve" build.log \
+            | sed 's#file:///home/runner/work/[^/]*/[^/]*/##' | head -40 \
+            | while IFS= read -r line; do echo "::error::${line}"; done
 
       # Отдельный APK на архитектуру (splits в app/build.gradle): libVLC весит ~20 МБ
       # на каждую. x86 собирается только для эмулятора и в релиз не идёт.

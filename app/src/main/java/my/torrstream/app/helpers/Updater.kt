@@ -29,7 +29,7 @@ import javax.net.ssl.SSLSocketFactory
 
 object Updater {
     private const val RELEASE_LINK =
-        "https://api.github.com/repos/cash94/TorrStream-Android/releases"
+        "https://api.github.com/repos/quriris/TorrStream-Android/releases"
     // Пишутся в фоновом потоке (check), читаются в основном (UpdateActivity)
     @Volatile private var releases: Releases? = null
     @Volatile private var newVersion: Release? = null
